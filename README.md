@@ -17,9 +17,6 @@ IGC files live in `data/igc/`, a build script parses them into a single
 2. Commit and push — Netlify rebuilds and the dashboard updates.
    Locally, just run `npm run dev`.
 
-Until `data/igc/` has files, the app shows generated **sample data** from
-`data/samples/` so you can see how it works.
-
 ### Naming takeoff sites
 
 IGC files contain coordinates, not site names. `data/sites.json` maps takeoff

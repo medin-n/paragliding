@@ -2,6 +2,7 @@
   "_comment": "Named takeoff sites. A flight whose takeoff point is within radiusKm of a site gets that site's name. Add your own sites here — the build log suggests entries for unmatched takeoffs.",
   "sites": [
     { "name": "Krushevo (Mechkin Kamen)", "lat": 41.3597, "lon": 21.2436, "radiusKm": 2.5 },
-    { "name": "Vodno (Skopje)", "lat": 41.9647, "lon": 21.4079, "radiusKm": 2.5 }
+    { "name": "Vodno (Skopje)", "lat": 41.9647, "lon": 21.4079, "radiusKm": 2.5 },
+    { "name": "Galicica", "lat": 40.955, "lon": 20.812, "radiusKm": 0.1 }
   ]
 }

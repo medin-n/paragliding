@@ -1,6 +1,6 @@
 /**
- * Parses all IGC files in data/igc/ (falls back to data/samples/ when empty)
- * into public/flights.json, which the web app loads at runtime.
+ * Parses all IGC files in data/igc/ into public/flights.json,
+ * which the web app loads at runtime.
  *
  * Optionally merges data/xcontest.csv (an XContest flight-list export) to
  * attach official XC points/km/route-type to matching flights (by date).
@@ -54,7 +54,7 @@ function parseIgc(text, fileName) {
         const kmh = (haversineKm(prev.lat, prev.lon, lat, lon) / dt) * 3600
         if (kmh > 250 || Math.abs(alt - prev.alt) / dt > 40) continue
       }
-      fixes.push({ t: h * 3600 + m * 60 + s, lat, lon, alt })
+      fixes.push({ t: h * 3600 + m * 60 + s, lat, lon, alt, pressAlt })
     } else if (line.startsWith('H')) {
       let mm
       if ((mm = line.match(/^HFDTE(?:DATE:)?(\d{2})(\d{2})(\d{2})/))) {
@@ -115,15 +115,22 @@ function parseIgc(text, fileName) {
     if (d > maxDistKm) maxDistKm = d
   }
 
-  // Vario over a ~15 s sliding window
+  // Vario over a ~15 s sliding window, from baro altitude when the logger
+  // has a pressure sensor (GPS altitude is far too noisy for climb rates).
+  // Baro reads 0 until the sensor warms up — treat those fixes as missing.
+  const hasBaro = flight.some((f) => f.pressAlt !== 0)
+  const vAlt = (f) => (hasBaro ? (f.pressAlt !== 0 ? f.pressAlt : null) : f.alt)
   let maxClimb = 0
   let maxSink = 0
   let j = 0
   for (let i = 0; i < flight.length; i++) {
     while (flight[i].t - flight[j].t > 15) j++
     const dt = flight[i].t - flight[j].t
-    if (dt >= 5) {
-      const v = (flight[i].alt - flight[j].alt) / dt
+    const a1 = vAlt(flight[j])
+    const a2 = vAlt(flight[i])
+    if (dt >= 5 && a1 != null && a2 != null) {
+      const v = (a2 - a1) / dt
+      if (Math.abs(v) > 30) continue // baro dropout/recalibration jump
       if (v > maxClimb) maxClimb = v
       if (v < maxSink) maxSink = v
     }
@@ -163,7 +170,22 @@ function parseIgc(text, fileName) {
     straightKm: +haversineKm(takeoff.lat, takeoff.lon, landing.lat, landing.lon).toFixed(1),
     avgSpeedKmh: +((trackKm / durationSec) * 3600).toFixed(1),
     profile: downsample(flight, 120).map((f) => f.alt),
-    track: downsample(flight, 150).map((f) => [+f.lat.toFixed(4), +f.lon.toFixed(4)]),
+    // ~1 point per 6 s so thermal circles stay visible on the map
+    track: downsample(flight, Math.min(800, Math.max(150, Math.round(durationSec / 6)))).map(
+      (f) => [+f.lat.toFixed(5), +f.lon.toFixed(5)]
+    ),
+  }
+}
+
+// ---------- config ----------
+function loadConfig() {
+  const p = join(root, 'data', 'config.json')
+  if (!existsSync(p)) return {}
+  try {
+    return JSON.parse(readFileSync(p, 'utf8'))
+  } catch (e) {
+    console.warn('Could not parse data/config.json:', e.message)
+    return {}
   }
 }
 
@@ -224,6 +246,7 @@ function mergeXContest(flights) {
   const cPoints = col('point')
   const cKm = col('length', 'km', 'dist')
   const cType = col('route', 'type')
+  const cUrl = col('link', 'url')
   if (cDate < 0) {
     console.warn('xcontest.csv found but no "date" column recognized — skipped.')
     return
@@ -241,6 +264,7 @@ function mergeXContest(flights) {
       points: cPoints >= 0 ? parseFloat(row[cPoints]) || null : null,
       km: cKm >= 0 ? parseFloat(row[cKm]) || null : null,
       type: cType >= 0 ? row[cType] || null : null,
+      url: cUrl >= 0 ? row[cUrl] || null : null,
     }
     matched++
   }
@@ -249,15 +273,8 @@ function mergeXContest(flights) {
 
 // ---------- main ----------
 const igcDir = join(root, 'data', 'igc')
-const samplesDir = join(root, 'data', 'samples')
-let dir = igcDir
-let files = existsSync(igcDir) ? readdirSync(igcDir).filter((f) => /\.igc$/i.test(f)) : []
-let usingSamples = false
-if (!files.length && existsSync(samplesDir)) {
-  dir = samplesDir
-  files = readdirSync(samplesDir).filter((f) => /\.igc$/i.test(f))
-  usingSamples = true
-}
+const dir = igcDir
+const files = existsSync(igcDir) ? readdirSync(igcDir).filter((f) => /\.igc$/i.test(f)) : []
 
 const flights = []
 for (const file of files) {
@@ -277,8 +294,6 @@ mergeXContest(flights)
 mkdirSync(join(root, 'public'), { recursive: true })
 writeFileSync(
   join(root, 'public', 'flights.json'),
-  JSON.stringify({ generatedAt: null, sampleData: usingSamples, flights })
+  JSON.stringify({ generatedAt: null, xcontestUser: loadConfig().xcontestUser || null, flights })
 )
-console.log(
-  `\nWrote public/flights.json — ${flights.length} flights${usingSamples ? ' (SAMPLE data — drop your .igc files into data/igc/)' : ''}.`
-)
+console.log(`\nWrote public/flights.json — ${flights.length} flights.`)

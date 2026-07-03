@@ -1,19 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { BarChart, ProfileChart } from './charts.jsx'
+import { BarChart } from './charts.jsx'
+import FlightView from './FlightView.jsx'
+import { MONTHS, fmtDur, fmtDate } from './format.js'
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-function fmtDur(sec) {
-  const h = Math.floor(sec / 3600)
-  const m = Math.round((sec % 3600) / 60)
-  return h ? `${h} h ${String(m).padStart(2, '0')} m` : `${m} min`
-}
 function fmtHours(sec) {
   return (sec / 3600).toFixed(sec >= 360000 ? 0 : 1)
-}
-function fmtDate(iso) {
-  const [y, m, d] = iso.split('-')
-  return `${d} ${MONTHS[+m - 1]} ${y}`
 }
 
 const COLUMNS = [
@@ -33,7 +24,7 @@ export default function App() {
   const [site, setSite] = useState('all')
   const [glider, setGlider] = useState('all')
   const [sort, setSort] = useState({ key: 'date', dir: -1 })
-  const [openId, setOpenId] = useState(null)
+  const [previewId, setPreviewId] = useState(null)
 
   useEffect(() => {
     fetch('/flights.json')
@@ -116,6 +107,7 @@ export default function App() {
   }, [filtered, sort])
 
   const hasXc = filtered.some((f) => f.xc)
+  const preview = previewId ? flights.find((f) => f.id === previewId) : null
 
   if (error) {
     return (
@@ -132,14 +124,6 @@ export default function App() {
         <h1>🪂 Paragliding Logbook</h1>
         <span className="sub">{flights.length} flights logged</span>
       </header>
-
-      {data.sampleData && (
-        <div className="sample-banner">
-          Showing <b>sample data</b>. Drop your XCTrack <code>.igc</code> files into{' '}
-          <code>data/igc/</code> and run <code>npm run dev</code> (or push to redeploy) to see
-          your own flights.
-        </div>
-      )}
 
       <div className="filters">
         <label>
@@ -187,23 +171,28 @@ export default function App() {
               <div className="label">Distance flown</div>
               <div className="value">{Math.round(stats.distanceKm).toLocaleString()}<small>km</small></div>
             </div>
-            <div className="tile">
+            <div className="tile clickable" title="View this flight"
+              onClick={() => setPreviewId(stats.longest.id)}>
               <div className="label">Longest flight</div>
               <div className="value">{fmtDur(stats.longest.durationSec)}</div>
               <div className="note">{fmtDate(stats.longest.date)}</div>
             </div>
-            <div className="tile">
+            <div className="tile clickable" title="View this flight"
+              onClick={() => setPreviewId(stats.highest.id)}>
               <div className="label">Highest altitude</div>
               <div className="value">{stats.highest.maxAlt.toLocaleString()}<small>m</small></div>
               <div className="note">{stats.highest.site}</div>
             </div>
-            <div className="tile">
+            <div className={`tile${hasXc ? '' : ' clickable'}`}
+              title={hasXc ? undefined : 'View this flight'}
+              onClick={hasXc ? undefined : () => setPreviewId(stats.bestClimb.id)}>
               <div className="label">{hasXc ? 'XC points' : 'Best climb'}</div>
               <div className="value">
                 {hasXc
                   ? Math.round(stats.xcPoints).toLocaleString()
                   : <>{stats.bestClimb.maxClimb}<small>m/s</small></>}
               </div>
+              {!hasXc && <div className="note">{fmtDate(stats.bestClimb.date)}</div>}
             </div>
           </div>
 
@@ -239,44 +228,29 @@ export default function App() {
                 </thead>
                 <tbody>
                   {sorted.map((f) => (
-                    <React.Fragment key={f.id}>
-                      <tr className="row" onClick={() => setOpenId(openId === f.id ? null : f.id)}>
-                        <td>{fmtDate(f.date)}</td>
-                        <td className="site-cell">{f.site}</td>
-                        <td>{f.glider}</td>
-                        <td className="num">{fmtDur(f.durationSec)}</td>
-                        <td className="num">{f.trackKm.toFixed(1)}</td>
-                        <td className="num">{f.maxAlt.toLocaleString()}</td>
-                        <td className="num">{f.maxClimb.toFixed(1)}</td>
-                        {hasXc && (
-                          <td className="num muted">{f.xc?.points ?? '—'}</td>
-                        )}
-                      </tr>
-                      {openId === f.id && (
-                        <tr>
-                          <td colSpan={COLUMNS.length + (hasXc ? 1 : 0)} style={{ padding: 0 }}>
-                            <div className="detail">
-                              <div className="facts">
-                                <span>Start <b>{f.startTimeUtc} UTC</b></span>
-                                <span>Alt gain <b>{f.altGain} m</b></span>
-                                <span>Max sink <b>{f.maxSink} m/s</b></span>
-                                <span>Avg speed <b>{f.avgSpeedKmh} km/h</b></span>
-                                <span>Max dist from takeoff <b>{f.maxDistKm} km</b></span>
-                                {f.xc?.type && <span>Route <b>{f.xc.type}</b></span>}
-                                <span style={{ color: 'var(--muted)' }}>{f.file}</span>
-                              </div>
-                              <ProfileChart profile={f.profile} durationSec={f.durationSec} />
-                            </div>
-                          </td>
-                        </tr>
+                    <tr key={f.id} className="row" onClick={() => setPreviewId(f.id)}>
+                      <td>{fmtDate(f.date)}</td>
+                      <td className="site-cell">{f.site}</td>
+                      <td>{f.glider}</td>
+                      <td className="num">{fmtDur(f.durationSec)}</td>
+                      <td className="num">{f.trackKm.toFixed(1)}</td>
+                      <td className="num">{f.maxAlt.toLocaleString()}</td>
+                      <td className="num">{f.maxClimb.toFixed(1)}</td>
+                      {hasXc && (
+                        <td className="num muted">{f.xc?.points ?? '—'}</td>
                       )}
-                    </React.Fragment>
+                    </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
         </>
+      )}
+
+      {preview && (
+        <FlightView flight={preview} xcontestUser={data.xcontestUser}
+          onClose={() => setPreviewId(null)} />
       )}
 
       <footer className="foot">
