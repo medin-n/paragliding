@@ -3,6 +3,11 @@
   "sites": [
     { "name": "Krushevo (Mechkin Kamen)", "lat": 41.3597, "lon": 21.2436, "radiusKm": 2.5 },
     { "name": "Vodno (Skopje)", "lat": 41.9647, "lon": 21.4079, "radiusKm": 2.5 },
-    { "name": "Galicica", "lat": 40.955, "lon": 20.812, "radiusKm": 0.1 }
+    { "name": "Galicica", "lat": 40.955, "lon": 20.812, "radiusKm": 0.1 },
+    { "name": "Oludeniz (Turkey)", "lat": 36.5365, "lon": 29.1593, "radiusKm": 2.5 },
+    { "name": "Anteni Shapka", "lat": 41.9936, "lon": 20.9009, "radiusKm": 2.5 },
+    { "name": "Ceripashina (Shapka)", "lat": 42.0153, "lon": 20.8551, "radiusKm": 2.5 },
+    { "name": "Osoj", "lat": 41.9435, "lon": 21.259, "radiusKm": 2.5 },
+    { "name": "Skopska Crna Gora", "lat": 42.1578, "lon": 21.4592, "radiusKm": 2.5 }
   ]
 }
